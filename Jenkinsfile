@@ -6,8 +6,13 @@ pipeline {
         APP_NAME      = 'registrationform'
         DOCKER_IMAGE  = 'satwik0731/registrationform'
         VERSION       = "${env.BUILD_NUMBER}"
+
         MAVEN_PROJECT_DIR = ''
         SKIP_MAVEN = 'true'
+
+        DOCKERFILE_DIR = ''
+        SKIP_DOCKER = 'true'
+
         NEXUS_REPO_ID  = 'maven-releases'
         NEXUS_REPO_URL = 'http://3.147.79.148:8081/repository/maven-releases/'
     }
@@ -24,6 +29,8 @@ pipeline {
             }
         }
 
+        /* ---------- MAVEN DETECTION ---------- */
+
         stage('Detect Maven Project') {
             steps {
                 script {
@@ -37,34 +44,23 @@ pipeline {
                         env.SKIP_MAVEN = 'false'
                         echo "✅ Maven project detected at: ${env.MAVEN_PROJECT_DIR}"
                     } else {
-                        env.SKIP_MAVEN = 'true'
-                        echo "⚠️ No pom.xml found — Maven/Sonar/Nexus stages skipped"
+                        echo "⚠️ No pom.xml found — Maven/Sonar/Nexus skipped"
                     }
                 }
             }
         }
 
         stage('Build & Test') {
-            when {
-                expression { env.SKIP_MAVEN == 'false' }
-            }
+            when { expression { env.SKIP_MAVEN == 'false' } }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     sh 'mvn clean package'
                 }
             }
-            post {
-                always {
-                    junit allowEmptyResults: true,
-                          testResults: "${MAVEN_PROJECT_DIR}/**/target/surefire-reports/*.xml"
-                }
-            }
         }
 
         stage('SonarQube Analysis') {
-            when {
-                expression { env.SKIP_MAVEN == 'false' }
-            }
+            when { expression { env.SKIP_MAVEN == 'false' } }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -80,9 +76,7 @@ pipeline {
         }
 
         stage('Upload to Nexus (Releases)') {
-            when {
-                expression { env.SKIP_MAVEN == 'false' }
-            }
+            when { expression { env.SKIP_MAVEN == 'false' } }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     withCredentials([usernamePassword(
@@ -109,13 +103,38 @@ EOF
             }
         }
 
-        stage('Build Docker Image') {
+        /* ---------- DOCKER DETECTION ---------- */
+
+        stage('Detect Dockerfile') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${VERSION} ."
+                script {
+                    def dockerfilePath = sh(
+                        script: "find . -name Dockerfile | head -n 1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (dockerfilePath) {
+                        env.DOCKERFILE_DIR = dockerfilePath.replace('/Dockerfile', '')
+                        env.SKIP_DOCKER = 'false'
+                        echo "✅ Dockerfile found at: ${env.DOCKERFILE_DIR}"
+                    } else {
+                        echo "⚠️ No Dockerfile found — Docker stages skipped"
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            when { expression { env.SKIP_DOCKER == 'false' } }
+            steps {
+                dir("${DOCKERFILE_DIR}") {
+                    sh "docker build -t ${DOCKER_IMAGE}:${VERSION} ."
+                }
             }
         }
 
         stage('Push Docker Image to DockerHub') {
+            when { expression { env.SKIP_DOCKER == 'false' } }
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -133,6 +152,7 @@ EOF
         }
 
         stage('Deploy to Docker Host (via Ansible)') {
+            when { expression { env.SKIP_DOCKER == 'false' } }
             steps {
                 sh """
                     ssh -o StrictHostKeyChecking=no ubuntu@18.216.107.250 \
