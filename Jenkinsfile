@@ -8,6 +8,8 @@ pipeline {
         VERSION       = "${env.BUILD_NUMBER}"
         MAVEN_PROJECT_DIR = ''
         SKIP_MAVEN = 'true'
+        NEXUS_REPO_ID  = 'maven-releases'
+        NEXUS_REPO_URL = 'http://3.147.79.148:8081/repository/maven-releases/'
     }
 
     tools {
@@ -36,7 +38,7 @@ pipeline {
                         echo "✅ Maven project detected at: ${env.MAVEN_PROJECT_DIR}"
                     } else {
                         env.SKIP_MAVEN = 'true'
-                        echo "⚠️ No pom.xml found — Maven, Sonar & Nexus stages will be skipped"
+                        echo "⚠️ No pom.xml found — Maven/Sonar/Nexus stages skipped"
                     }
                 }
             }
@@ -77,7 +79,7 @@ pipeline {
             }
         }
 
-        stage('Upload to Nexus (Snapshots)') {
+        stage('Upload to Nexus (Releases)') {
             when {
                 expression { env.SKIP_MAVEN == 'false' }
             }
@@ -93,7 +95,7 @@ cat <<EOF > settings.xml
 <settings>
   <servers>
     <server>
-      <id>nexus</id>
+      <id>${NEXUS_REPO_ID}</id>
       <username>${NEXUS_USER}</username>
       <password>${NEXUS_PASS}</password>
     </server>
@@ -101,7 +103,7 @@ cat <<EOF > settings.xml
 </settings>
 EOF
                         """
-                        sh 'mvn deploy -DskipTests -s settings.xml'
+                        sh "mvn deploy -DskipTests -s settings.xml"
                     }
                 }
             }
