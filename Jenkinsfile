@@ -7,6 +7,7 @@ pipeline {
         DOCKER_IMAGE  = 'satwik0731/registrationform'
         VERSION       = "${env.BUILD_NUMBER}"
         MAVEN_PROJECT_DIR = ''
+        SKIP_MAVEN = 'true'
     }
 
     tools {
@@ -29,17 +30,22 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    if (!pomPath) {
-                        error "❌ pom.xml not found anywhere in repository"
+                    if (pomPath) {
+                        env.MAVEN_PROJECT_DIR = pomPath.replace('/pom.xml', '')
+                        env.SKIP_MAVEN = 'false'
+                        echo "✅ Maven project detected at: ${env.MAVEN_PROJECT_DIR}"
+                    } else {
+                        env.SKIP_MAVEN = 'true'
+                        echo "⚠️ No pom.xml found — Maven, Sonar & Nexus stages will be skipped"
                     }
-
-                    env.MAVEN_PROJECT_DIR = pomPath.replace('/pom.xml', '')
-                    echo "✅ Found pom.xml in: ${env.MAVEN_PROJECT_DIR}"
                 }
             }
         }
 
         stage('Build & Test') {
+            when {
+                expression { env.SKIP_MAVEN == 'false' }
+            }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     sh 'mvn clean package'
@@ -54,6 +60,9 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
+            when {
+                expression { env.SKIP_MAVEN == 'false' }
+            }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -69,6 +78,9 @@ pipeline {
         }
 
         stage('Upload to Nexus (Snapshots)') {
+            when {
+                expression { env.SKIP_MAVEN == 'false' }
+            }
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
                     withCredentials([usernamePassword(
@@ -76,7 +88,7 @@ pipeline {
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
                     )]) {
-                        sh '''
+                        sh """
 cat <<EOF > settings.xml
 <settings>
   <servers>
@@ -88,7 +100,7 @@ cat <<EOF > settings.xml
   </servers>
 </settings>
 EOF
-                        '''
+                        """
                         sh 'mvn deploy -DskipTests -s settings.xml'
                     }
                 }
