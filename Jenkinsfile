@@ -6,7 +6,7 @@ pipeline {
         APP_NAME      = 'registrationform'
         DOCKER_IMAGE  = 'satwik0731/registrationform'
         VERSION       = "${env.BUILD_NUMBER}"
-        MAVEN_PROJECT_DIR = 'registrationform' // <-- change this if your pom.xml is elsewhere
+        MAVEN_PROJECT_DIR = ''
     }
 
     tools {
@@ -21,6 +21,24 @@ pipeline {
             }
         }
 
+        stage('Detect Maven Project') {
+            steps {
+                script {
+                    def pomPath = sh(
+                        script: "find . -name pom.xml | head -n 1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (!pomPath) {
+                        error "❌ pom.xml not found anywhere in repository"
+                    }
+
+                    env.MAVEN_PROJECT_DIR = pomPath.replace('/pom.xml', '')
+                    echo "✅ Found pom.xml in: ${env.MAVEN_PROJECT_DIR}"
+                }
+            }
+        }
+
         stage('Build & Test') {
             steps {
                 dir("${MAVEN_PROJECT_DIR}") {
@@ -29,7 +47,8 @@ pipeline {
             }
             post {
                 always {
-                    junit "${MAVEN_PROJECT_DIR}/target/surefire-reports/*.xml"
+                    junit allowEmptyResults: true,
+                          testResults: "${MAVEN_PROJECT_DIR}/**/target/surefire-reports/*.xml"
                 }
             }
         }
@@ -78,9 +97,7 @@ EOF
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                    docker build -t ${DOCKER_IMAGE}:${VERSION} .
-                """
+                sh "docker build -t ${DOCKER_IMAGE}:${VERSION} ."
             }
         }
 
@@ -105,7 +122,7 @@ EOF
             steps {
                 sh """
                     ssh -o StrictHostKeyChecking=no ubuntu@18.216.107.250 \
-                    'cd ~/ansible && bash -lc "ansible-playbook -i inventory.ini deploy-app.yml"'
+                    'cd ~/ansible && ansible-playbook -i inventory.ini deploy-app.yml'
                 """
             }
         }
