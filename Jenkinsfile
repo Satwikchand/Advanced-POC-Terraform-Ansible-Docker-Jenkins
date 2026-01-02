@@ -6,6 +6,7 @@ pipeline {
         APP_NAME      = 'registrationform'
         DOCKER_IMAGE  = 'satwik0731/registrationform'
         VERSION       = "${env.BUILD_NUMBER}"
+        MAVEN_PROJECT_DIR = 'registrationform' // <-- change this if your pom.xml is elsewhere
     }
 
     tools {
@@ -22,40 +23,41 @@ pipeline {
 
         stage('Build & Test') {
             steps {
-                sh 'mvn clean package'
+                dir("${MAVEN_PROJECT_DIR}") {
+                    sh 'mvn clean package'
+                }
             }
             post {
                 always {
-                    junit testResults: '**/target/surefire-reports/*.xml',
-                          allowEmptyResults: true
+                    junit "${MAVEN_PROJECT_DIR}/target/surefire-reports/*.xml"
                 }
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(
-                    credentialsId: 'sonar-token',
-                    variable: 'SONAR_TOKEN'
-                )]) {
-                    sh '''
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=registrationform \
-                        -Dsonar.host.url=http://3.145.201.220:9000 \
-                        -Dsonar.login=$SONAR_TOKEN
-                    '''
+                dir("${MAVEN_PROJECT_DIR}") {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            mvn sonar:sonar \
+                            -Dsonar.projectKey=${APP_NAME} \
+                            -Dsonar.host.url=${SONARQUBE_URL} \
+                            -Dsonar.login=$SONAR_TOKEN
+                        """
+                    }
                 }
             }
         }
 
         stage('Upload to Nexus (Snapshots)') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'nexus-creds',
-                    usernameVariable: 'NEXUS_USER',
-                    passwordVariable: 'NEXUS_PASS'
-                )]) {
-                    sh '''
+                dir("${MAVEN_PROJECT_DIR}") {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'nexus-creds',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )]) {
+                        sh '''
 cat <<EOF > settings.xml
 <settings>
   <servers>
@@ -67,8 +69,9 @@ cat <<EOF > settings.xml
   </servers>
 </settings>
 EOF
-                    '''
-                    sh 'mvn deploy -DskipTests -s settings.xml'
+                        '''
+                        sh 'mvn deploy -DskipTests -s settings.xml'
+                    }
                 }
             }
         }
