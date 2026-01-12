@@ -6,10 +6,10 @@
   tasks:
     - name: Pull latest image
       docker_container:
-        name: onlinebookstore
-        image: kishangollamudi/onlinebookstore:latest
+        name: registrationform
+        image: satwik0731/registrationform
         state: started
         restart_policy: always
         ports:
-          - "8080:8080"
+          - "8866:8080"
         recreate: yes
