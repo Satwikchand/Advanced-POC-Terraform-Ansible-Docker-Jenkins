@@ -1,0 +1,13 @@
+---
+- name: Install Docker on Jenkins server
+  hosts: jenkins
+  become: yes
+
+  roles:
+    - docker
+
+  tasks:
+    - name: Restart Jenkins service
+      service:
+        name: jenkins
+        state: restarted

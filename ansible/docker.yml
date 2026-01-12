@@ -1,0 +1,7 @@
+---
+- name: Install Docker on required servers
+  hosts: docker,sonarqube,nexus
+  become: true
+  roles:
+    - common
+    - docker

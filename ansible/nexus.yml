@@ -1,0 +1,6 @@
+---
+- name: Setup Nexus server
+  hosts: nexus
+  become: true
+  roles:
+    - nexus

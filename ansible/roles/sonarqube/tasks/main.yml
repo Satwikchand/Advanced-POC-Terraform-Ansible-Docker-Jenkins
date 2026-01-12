@@ -1,0 +1,9 @@
+---
+- name: Run SonarQube container
+  docker_container:
+    name: sonarqube
+    image: sonarqube:lts
+    state: started
+    restart_policy: always
+    ports:
+      - "9000:9000"

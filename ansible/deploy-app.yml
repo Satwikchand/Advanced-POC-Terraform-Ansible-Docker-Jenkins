@@ -1,0 +1,15 @@
+---
+- name: Deploy OnlineBookstore on Docker Host
+  hosts: docker
+  become: yes
+
+  tasks:
+    - name: Pull latest image
+      docker_container:
+        name: onlinebookstore
+        image: kishangollamudi/onlinebookstore:latest
+        state: started
+        restart_policy: always
+        ports:
+          - "8080:8080"
+        recreate: yes
