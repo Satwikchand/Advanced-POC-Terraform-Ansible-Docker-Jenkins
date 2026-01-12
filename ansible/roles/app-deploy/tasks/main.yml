@@ -1,10 +1,10 @@
 ---
 - name: Pull latest Docker image
   docker_container:
-    name: onlinebookstore
-    image: kishangollamudi/onlinebookstore:latest
+    name: registrationform 
+    image: satwik0731/registrationform:v11
     state: started
     restart_policy: always
     ports:
-      - "8080:8080"
+      - "8866:8080"
   become: yes
